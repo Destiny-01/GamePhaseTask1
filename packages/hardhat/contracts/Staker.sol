@@ -12,24 +12,52 @@ contract Staker {
       exampleExternalContract = ExampleExternalContract(exampleExternalContractAddress);
   }
 
-  // Collect funds in a payable `stake()` function and track individual `balances` with a mapping:
-  //  ( make sure to add a `Stake(address,uint256)` event and emit it for the frontend <List/> display )
+  event Stake(address _address, uint256 _amount);
 
+  mapping(address=>uint256) public balances;
+  uint256 public constant threshold=1 ether;
+  uint256 public deadline = block.timestamp + 72 hours;
+  bool openForWithdraw;
 
-  // After some `deadline` allow anyone to call an `execute()` function
-  //  It should either call `exampleExternalContract.complete{value: address(this).balance}()` to send all the value
+  modifier notCompleted() {
+    require(exampleExternalContract.completed()!=true);
+    _;
+  }
+  
+  function stake() public payable {
+    balances[msg.sender] += msg.value;
 
+    emit Stake(msg.sender, msg.value);
+  }
 
-  // if the `threshold` was not met, allow everyone to call a `withdraw()` function
+  function execute() public notCompleted {
+    if(block.timestamp>=deadline){
+      console.log(address(this).balance, threshold);
+      if (address(this).balance >= threshold) {
+      console.log("address(this).balance, threshold");
+        exampleExternalContract.complete{value: address(this).balance}();
+      } else {
+        openForWithdraw=true;
+        withdraw();
+      }
+    }
+  }
+  
+  function withdraw() public notCompleted {
+    require(openForWithdraw==true,"You can't withdraw now");
+    payable(msg.sender).transfer(balances[msg.sender]);
+    openForWithdraw=false;
+  }
 
+  function timeLeft() view public returns (uint256) {
+    if (block.timestamp>=deadline) {
+      return 0;
+    } else {
+      return deadline-block.timestamp;
+    }
+  }
 
-  // Add a `withdraw()` function to let users withdraw their balance
-
-
-  // Add a `timeLeft()` view function that returns the time left before the deadline for the frontend
-
-
-  // Add the `receive()` special function that receives eth and calls stake()
-
-
+  receive() external payable{
+    stake();
+  }
 }
